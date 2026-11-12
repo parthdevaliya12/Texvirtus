@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Send, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 
+const WEB3FORMS_ACCESS_KEY = '9ae83717-78b7-44b8-94a0-fe6bbe451c96'
+
 const serviceOptions = [
   'Accounting & Bookkeeping',
   'Income Tax & ITR Filing',
@@ -29,6 +31,7 @@ export default function ContactForm() {
   const [formData, setFormData] = useState(initialState)
   const [errors, setErrors] = useState({})
   const [status, setStatus] = useState('idle') // idle | submitting | success | error
+  const [errorMessage, setErrorMessage] = useState('')
 
   const validate = () => {
     const newErrors = {}
@@ -53,9 +56,13 @@ export default function ContactForm() {
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }))
     }
+    if (status === 'error') {
+      setStatus('idle')
+      setErrorMessage('')
+    }
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     const validationErrors = validate()
     if (Object.keys(validationErrors).length > 0) {
@@ -64,12 +71,41 @@ export default function ContactForm() {
     }
 
     setStatus('submitting')
-    // Simulate submission
-    setTimeout(() => {
-      setStatus('success')
-      setFormData(initialState)
-      setTimeout(() => setStatus('idle'), 5000)
-    }, 1500)
+    setErrorMessage('')
+
+    try {
+      const response = await fetch('https://api.web3forms.com/submit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          access_key: WEB3FORMS_ACCESS_KEY,
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          phone: formData.phone.trim(),
+          service: formData.service,
+          message: formData.message.trim() || 'No additional message provided.',
+          from_name: 'TAXVIRTUS Website Lead',
+          subject: `New Client Inquiry: ${formData.service} - ${formData.name}`,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setStatus('success')
+        setFormData(initialState)
+        setTimeout(() => setStatus('idle'), 6000)
+      } else {
+        setStatus('error')
+        setErrorMessage(data.message || 'Failed to send message. Please try again.')
+      }
+    } catch (err) {
+      setStatus('error')
+      setErrorMessage('Network error occurred. Please check your connection and try again.')
+    }
   }
 
   const inputClasses = (field) =>
@@ -184,16 +220,16 @@ export default function ContactForm() {
         />
       </div>
 
-      {/* Submit */}
+      {/* Submit Button */}
       <button
         type="submit"
         disabled={status === 'submitting'}
-        className="w-full inline-flex items-center justify-center gap-2 bg-navy hover:bg-navy-light disabled:bg-navy/60 text-white px-6 py-3.5 rounded-xl text-sm font-semibold transition-all duration-200 shadow-md hover:shadow-lg disabled:cursor-not-allowed"
+        className="w-full inline-flex items-center justify-center gap-2 bg-navy hover:bg-navy-light disabled:bg-navy/60 text-white px-6 py-3.5 rounded-xl text-sm font-semibold transition-all duration-200 shadow-md hover:shadow-lg disabled:cursor-not-allowed cursor-pointer"
       >
         {status === 'submitting' ? (
           <>
             <Loader2 className="w-4 h-4 animate-spin" />
-            Sending...
+            Sending Message...
           </>
         ) : (
           <>
@@ -211,8 +247,8 @@ export default function ContactForm() {
           className="flex items-center gap-2 p-4 bg-green-50 border border-green-200 rounded-xl"
         >
           <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
-          <p className="text-sm text-green-700">
-            Thank you! Your message has been received. We will contact you shortly.
+          <p className="text-sm text-green-700 font-medium">
+            Thank you! Your inquiry has been sent successfully. Our team will contact you shortly.
           </p>
         </motion.div>
       )}
@@ -225,8 +261,8 @@ export default function ContactForm() {
           className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-xl"
         >
           <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
-          <p className="text-sm text-red-700">
-            Something went wrong. Please try again or contact us directly.
+          <p className="text-sm text-red-700 font-medium">
+            {errorMessage || 'Something went wrong. Please try again or reach out to +91 88491 59528.'}
           </p>
         </motion.div>
       )}
